@@ -35,7 +35,10 @@ export default function ChildrenPage() {
   }, [user?.parentId]);
 
   const refreshChildren = async () => {
-    if (!user) return;
+    if (!user || !user.parentId) {
+      setChildren([]);
+      return;
+    }
     setLoading(true);
     try {
       const list = await fetchChildren(user.parentId);
@@ -46,7 +49,7 @@ export default function ChildrenPage() {
   };
 
   const handleCreate = async () => {
-    if (!user || !createForm.name || !createForm.dateOfBirth) {
+    if (!user || !user.parentId || !createForm.name || !createForm.dateOfBirth) {
       return;
     }
     await createChild(user.parentId, createForm.name, createForm.dateOfBirth);
@@ -74,6 +77,11 @@ export default function ChildrenPage() {
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
         Create a child profile and update the details to improve activity recommendations.
       </Typography>
+      {!user?.parentId && (
+        <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
+          Your account is not yet linked to a backend parent profile. Child profile creation will be enabled once the account is linked.
+        </Typography>
+      )}
 
       <Card sx={{ p: 3, mb: 4, borderRadius: 4 }}>
         <Typography variant="h6" gutterBottom>
@@ -99,7 +107,7 @@ export default function ChildrenPage() {
             />
           </Grid>
           <Grid item xs={12} md={2}>
-            <Button variant="contained" fullWidth onClick={handleCreate}>
+            <Button variant="contained" fullWidth onClick={handleCreate} disabled={!user?.parentId}>
               Add child
             </Button>
           </Grid>

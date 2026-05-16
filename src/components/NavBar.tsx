@@ -25,7 +25,7 @@ export default function NavBar() {
           <Typography variant="h6" component="div" sx={{ mr: 4 }}>
             Mura Web
           </Typography>
-          {user && (
+          {user ? (
             <>
               <NavLink to="/" style={linkStyle}>
                 Home
@@ -35,6 +35,15 @@ export default function NavBar() {
               </NavLink>
               <NavLink to="/children" style={linkStyle}>
                 Children
+              </NavLink>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login" style={linkStyle}>
+                Sign in
+              </NavLink>
+              <NavLink to="/signup" style={linkStyle}>
+                Sign up
               </NavLink>
             </>
           )}
@@ -47,11 +56,7 @@ export default function NavBar() {
                 Logout
               </Button>
             </>
-          ) : (
-            <Button component={NavLink} to="/login" color="inherit">
-              Sign in
-            </Button>
-          )}
+          ) : null}
         </Box>
       </Toolbar>
     </AppBar>

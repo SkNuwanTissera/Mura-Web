@@ -4,6 +4,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import ActivitiesPage from './pages/ActivitiesPage';
 import ChildrenPage from './pages/ChildrenPage';
@@ -27,6 +28,7 @@ function AppContent() {
           <Box sx={{ pt: 4, pb: 6 }}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
               <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="/activities" element={<ProtectedRoute><ActivitiesPage /></ProtectedRoute>} />
               <Route path="/children" element={<ProtectedRoute><ChildrenPage /></ProtectedRoute>} />

@@ -11,41 +11,47 @@ import {
   Alert,
   Link
 } from '@mui/material';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
 import { useAuth } from '../hooks/useAuth';
 
-export default function LoginPage() {
-  const { login } = useAuth();
+export default function SignupPage() {
+  const { register } = useAuth();
   const navigate = useNavigate();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter both email and password.');
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError('Please complete all fields.');
       return;
     }
 
-    const result = login(email.trim(), password);
+    const result = register({
+      name: name.trim(),
+      email: email.trim(),
+      password: password.trim()
+    });
+
     if (!result.success) {
       setError(result.message);
       return;
     }
 
-    navigate('/');
+    navigate('/login');
   };
 
   return (
     <Container maxWidth="sm">
       <Paper elevation={8} sx={{ mt: 10, p: 4, borderRadius: 4 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
-            <LockOutlinedIcon />
+          <Avatar sx={{ m: 1, bgcolor: 'secondary.main' }}>
+            <HowToRegIcon />
           </Avatar>
           <Typography component="h1" variant="h5" gutterBottom>
-            Family Login
+            Create account
           </Typography>
         </Box>
 
@@ -56,6 +62,14 @@ export default function LoginPage() {
         )}
 
         <Box component="form" onSubmit={handleSubmit} noValidate>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            label="Your Name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
           <TextField
             margin="normal"
             required
@@ -75,12 +89,12 @@ export default function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
           <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2 }}>
-            Log in
+            Sign up
           </Button>
           <Typography variant="body2" color="text.secondary" align="center">
-            Don&apos;t have an account?{' '}
-            <Link component={RouterLink} to="/signup">
-              Sign up here
+            Already have an account?{' '}
+            <Link component={RouterLink} to="/login">
+              Log in
             </Link>
           </Typography>
         </Box>

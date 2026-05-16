@@ -1,7 +1,7 @@
 export interface User {
   name: string;
   email: string;
-  parentId: string;
+  parentId?: string;
 }
 
 export interface Activity {
