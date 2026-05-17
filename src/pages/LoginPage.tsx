@@ -9,26 +9,47 @@ import {
   Box,
   Container,
   Alert,
-  Link
+  Link,
+  Divider
 } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import GoogleIcon from '@mui/icons-material/Google';
 import { useAuth } from '../hooks/useAuth';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setGoogleLoading(true);
+    const result = await googleLogin();
+    setGoogleLoading(false);
+    if (!result.success) {
+      setError(result.message);
+      return;
+    }
+    navigate('/');
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError('');
+
     if (!email.trim() || !password.trim()) {
       setError('Please enter both email and password.');
       return;
     }
 
-    const result = login(email.trim(), password);
+    setLoading(true);
+    const result = await login(email.trim(), password);
+    setLoading(false);
+
     if (!result.success) {
       setError(result.message);
       return;
@@ -74,8 +95,18 @@ export default function LoginPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2 }}>
-            Log in
+          <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2 }} disabled={loading}>
+            {loading ? 'Signing in...' : 'Log in'}
+          </Button>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<GoogleIcon />}
+            sx={{ mb: 2 }}
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+          >
+            {googleLoading ? 'Signing in with Google...' : 'Continue with Google'}
           </Button>
           <Typography variant="body2" color="text.secondary" align="center">
             Don&apos;t have an account?{' '}
