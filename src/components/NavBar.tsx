@@ -1,4 +1,5 @@
-import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Badge } from '@mui/material';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -48,9 +49,20 @@ export default function NavBar() {
             </>
           )}
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {user ? (
             <>
+              <IconButton
+                color="inherit"
+                component={NavLink}
+                to="/cart"
+                aria-label="Cart"
+                sx={{ mr: 1 }}
+              >
+                <Badge badgeContent={0} color="error">
+                  <ShoppingCartIcon />
+                </Badge>
+              </IconButton>
               <Typography variant="body2">{user.name}</Typography>
               <Button color="inherit" onClick={handleLogout}>
                 Logout

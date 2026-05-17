@@ -12,6 +12,8 @@ export interface Activity {
   locationName: string;
   address: string;
   city: string;
+  latitude?: number;
+  longitude?: number;
   minAge: number;
   maxAge: number;
   availabilitySlots: string[];
@@ -19,6 +21,22 @@ export interface Activity {
   endTime?: string;
   priceGbp?: number;
   contactPhone?: string;
+}
+
+export interface CartItem {
+  id: string;
+  activity: Activity;
+  createdAt: string;
+}
+
+export interface CartCheckoutResult {
+  checkedOutItems: CartItem[];
+  totalPrice: number;
+  count: number;
+}
+
+export interface CheckoutSessionResponse {
+  checkoutUrl: string;
 }
 
 export interface Child {
@@ -39,5 +57,15 @@ export interface ActivitySearchFilters {
   category?: string;
   city?: string;
   locationName?: string;
+  postcode?: string;
+  radiusMiles?: number;
   limit?: number;
+  page?: number;
+}
+
+export interface PageResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
 }

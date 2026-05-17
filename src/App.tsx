@@ -7,7 +7,10 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import ActivitiesPage from './pages/ActivitiesPage';
+import CartPage from './pages/CartPage';
 import ChildrenPage from './pages/ChildrenPage';
+import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
+import CheckoutCancelPage from './pages/CheckoutCancelPage';
 import NavBar from './components/NavBar';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -31,6 +34,9 @@ function AppContent() {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="/activities" element={<ProtectedRoute><ActivitiesPage /></ProtectedRoute>} />
+              <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
+              <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccessPage /></ProtectedRoute>} />
+              <Route path="/checkout/cancel" element={<ProtectedRoute><CheckoutCancelPage /></ProtectedRoute>} />
               <Route path="/children" element={<ProtectedRoute><ChildrenPage /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
