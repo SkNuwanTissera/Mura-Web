@@ -39,6 +39,26 @@ export interface CheckoutSessionResponse {
   checkoutUrl: string;
 }
 
+export interface ActivityBooking {
+  id: string;
+  activity: Activity;
+  paymentRecordId?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface PaymentHistory {
+  id: string;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  amountGbp: number;
+  currency: string;
+  status: string;
+  customerEmail?: string;
+  billingName?: string;
+  createdAt: string;
+}
+
 export interface Child {
   id: string;
   name: string;

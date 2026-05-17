@@ -1,4 +1,4 @@
-import { Activity, ActivitySearchFilters, CartCheckoutResult, CheckoutSessionResponse, CartItem, Child, User, PageResult } from './types';
+import { Activity, ActivityBooking, ActivitySearchFilters, CartCheckoutResult, CheckoutSessionResponse, CartItem, Child, PaymentHistory, User, PageResult } from './types';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
@@ -118,12 +118,52 @@ function normalizeCartItem(raw: any): CartItem {
   };
 }
 
+function normalizeActivityBooking(raw: any): ActivityBooking {
+  return {
+    id: raw.id,
+    activity: normalizeActivity(raw.activity),
+    paymentRecordId: raw.payment_record_id ?? raw.paymentRecordId,
+    status: raw.status,
+    createdAt: raw.created_at ?? raw.createdAt,
+  };
+}
+
+function normalizePaymentHistory(raw: any): PaymentHistory {
+  return {
+    id: raw.id,
+    stripeSessionId: raw.stripe_session_id ?? raw.stripeSessionId,
+    stripePaymentIntentId: raw.stripe_payment_intent_id ?? raw.stripePaymentIntentId,
+    amountGbp: raw.amount_gbp ?? raw.amountGbp ?? 0,
+    currency: raw.currency ?? 'GBP',
+    status: raw.status ?? 'paid',
+    customerEmail: raw.customer_email ?? raw.customerEmail,
+    billingName: raw.billing_name ?? raw.billingName,
+    createdAt: raw.created_at ?? raw.createdAt,
+  };
+}
+
 export async function fetchCartItems(parentId: string): Promise<CartItem[]> {
   const url = new URL('/api/cart', apiBase);
   url.searchParams.set('parentId', parentId);
   const response = await fetch(url.toString());
   const rawItems = await parseJson<any[]>(response);
   return rawItems.map(normalizeCartItem);
+}
+
+export async function fetchBookings(parentId: string): Promise<ActivityBooking[]> {
+  const url = new URL('/api/bookings', apiBase);
+  url.searchParams.set('parentId', parentId);
+  const response = await fetch(url.toString());
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeActivityBooking);
+}
+
+export async function fetchPaymentHistory(parentId: string): Promise<PaymentHistory[]> {
+  const url = new URL('/api/payments/history', apiBase);
+  url.searchParams.set('parentId', parentId);
+  const response = await fetch(url.toString());
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizePaymentHistory);
 }
 
 export async function addActivityToCart(parentId: string, activityId: string): Promise<CartItem> {

@@ -11,6 +11,7 @@ import CartPage from './pages/CartPage';
 import ChildrenPage from './pages/ChildrenPage';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import CheckoutCancelPage from './pages/CheckoutCancelPage';
+import ProfilePage from './pages/ProfilePage';
 import NavBar from './components/NavBar';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -38,6 +39,7 @@ function AppContent() {
               <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccessPage /></ProtectedRoute>} />
               <Route path="/checkout/cancel" element={<ProtectedRoute><CheckoutCancelPage /></ProtectedRoute>} />
               <Route path="/children" element={<ProtectedRoute><ChildrenPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Box>

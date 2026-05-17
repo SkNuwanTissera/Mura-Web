@@ -37,6 +37,9 @@ export default function NavBar() {
               <NavLink to="/children" style={linkStyle}>
                 Children
               </NavLink>
+              <NavLink to="/profile" style={linkStyle}>
+                Profile
+              </NavLink>
             </>
           ) : (
             <>
@@ -63,7 +66,9 @@ export default function NavBar() {
                   <ShoppingCartIcon />
                 </Badge>
               </IconButton>
-              <Typography variant="body2">{user.name}</Typography>
+              <Button color="inherit" onClick={() => navigate('/profile')}>
+                {user.name}
+              </Button>
               <Button color="inherit" onClick={handleLogout}>
                 Logout
               </Button>
