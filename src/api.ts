@@ -110,9 +110,25 @@ export async function geocodePostcode(postcode: string): Promise<{ lat: number; 
   };
 }
 
+function normalizeChild(raw: any): Child {
+  return {
+    id: raw.id,
+    name: raw.name,
+    dateOfBirth: raw.date_of_birth ?? raw.dateOfBirth,
+    age: raw.age,
+    preferredCity: raw.preferred_city ?? raw.preferredCity,
+    interests: raw.interests,
+    maxBudgetGbp: raw.max_budget_gbp ?? raw.maxBudgetGbp,
+    availableTimes: raw.available_times ?? raw.availableTimes,
+    travelRadiusKm: raw.travel_radius_km ?? raw.travelRadiusKm,
+    postcode: raw.postcode,
+  };
+}
+
 function normalizeCartItem(raw: any): CartItem {
   return {
     id: raw.id,
+    child: normalizeChild(raw.child),
     activity: normalizeActivity(raw.activity),
     createdAt: raw.created_at ?? raw.createdAt,
   };
@@ -121,6 +137,7 @@ function normalizeCartItem(raw: any): CartItem {
 function normalizeActivityBooking(raw: any): ActivityBooking {
   return {
     id: raw.id,
+    child: raw.child ? normalizeChild(raw.child) : undefined,
     activity: normalizeActivity(raw.activity),
     paymentRecordId: raw.payment_record_id ?? raw.paymentRecordId,
     status: raw.status,
@@ -166,11 +183,11 @@ export async function fetchPaymentHistory(parentId: string): Promise<PaymentHist
   return rawItems.map(normalizePaymentHistory);
 }
 
-export async function addActivityToCart(parentId: string, activityId: string): Promise<CartItem> {
+export async function addActivityToCart(parentId: string, activityId: string, childId: string): Promise<CartItem> {
   const response = await fetch(`${apiBase}/api/cart`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ parent_id: parentId, activity_id: activityId })
+    body: JSON.stringify({ parent_id: parentId, activity_id: activityId, child_id: childId })
   });
   const rawItem = await parseJson<any>(response);
   return normalizeCartItem(rawItem);
@@ -248,13 +265,17 @@ export async function fetchChildren(parentId: string): Promise<Child[]> {
   return parseJson<Child[]>(response);
 }
 
-export async function createChild(parentId: string, name: string, dateOfBirth: string): Promise<Child> {
+export type ChildInput = Omit<Child, 'id'>;
+
+export async function createChild(parentId: string, child: ChildInput): Promise<Child> {
   const url = new URL('/api/children', apiBase);
   url.searchParams.set('parentId', parentId);
-  url.searchParams.set('name', name);
-  url.searchParams.set('dateOfBirth', dateOfBirth);
 
-  const response = await fetch(url.toString(), { method: 'POST' });
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(child)
+  });
   return parseJson<Child>(response);
 }
 

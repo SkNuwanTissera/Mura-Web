@@ -23,7 +23,7 @@ import {
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { Activity } from '../types';
+import { Activity, Child } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import {
   getCategories,
@@ -31,6 +31,7 @@ import {
   geocodePostcode,
   searchActivities,
   addActivityToCart,
+  fetchChildren,
 } from '../api';
 import ActivityCard from '../components/ActivityCard';
 
@@ -52,10 +53,22 @@ export default function ActivitiesPage() {
   const [mapZoom, setMapZoom] = useState(10);
   const [mapCenter, setMapCenter] = useState({ lat: 51.5074, lon: -0.1278 });
 
+  const [children, setChildren] = useState<Child[]>([]);
+  const [childDialogActivity, setChildDialogActivity] = useState<string | null>(null);
+  const [selectedChildId, setSelectedChildId] = useState('');
+
+  const { user } = useAuth();
+
   useEffect(() => {
     getCategories().then(setCategories).catch(() => setCategories([]));
     getCities().then(setCities).catch(() => setCities([]));
   }, []);
+
+  useEffect(() => {
+    if (user?.parentId) {
+      fetchChildren(user.parentId).then(setChildren).catch(() => setChildren([]));
+    }
+  }, [user?.parentId]);
 
   useEffect(() => {
     loadActivities(page, filters, sortOption);
@@ -143,17 +156,22 @@ export default function ActivitiesPage() {
     }
   };
 
-  const { user } = useAuth();
-  const handleAddToCart = async (activityId: string) => {
+  const handleAddToCartClick = (activityId: string) => {
     if (!user?.parentId) {
       setCartMessage('Please log in and ensure your account is connected to a parent profile before adding to cart.');
       return;
     }
-
-    setCartLoading(activityId);
     setCartMessage('');
+    setSelectedChildId(children.length > 0 ? children[0].id : '');
+    setChildDialogActivity(activityId);
+  };
+
+  const handleChildDialogConfirm = async () => {
+    if (!user?.parentId || !childDialogActivity || !selectedChildId) return;
+    setChildDialogActivity(null);
+    setCartLoading(childDialogActivity);
     try {
-      await addActivityToCart(user.parentId, activityId);
+      await addActivityToCart(user.parentId, childDialogActivity, selectedChildId);
       setCartMessage('Activity added to cart successfully.');
     } catch (err) {
       setCartMessage(err instanceof Error ? err.message : 'Could not add activity to cart.');
@@ -373,7 +391,7 @@ export default function ActivitiesPage() {
                 key={activity.id}
                 activity={activity}
                 loading={loading}
-                onAddToCart={() => handleAddToCart(activity.id)}
+                onAddToCart={() => handleAddToCartClick(activity.id)}
               />
             ))}
           </Stack>
@@ -428,6 +446,42 @@ export default function ActivitiesPage() {
           No activities found. Try opening filters and choosing broader criteria.
         </Typography>
       )}
+
+      <Dialog open={!!childDialogActivity} onClose={() => setChildDialogActivity(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Select a child for this activity</DialogTitle>
+        <DialogContent>
+          {children.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              You have no child profiles yet. Please add a child on the Children page before adding activities to your cart.
+            </Typography>
+          ) : (
+            <FormControl fullWidth sx={{ mt: 1 }}>
+              <InputLabel>Child</InputLabel>
+              <Select
+                value={selectedChildId}
+                label="Child"
+                onChange={(event) => setSelectedChildId(event.target.value)}
+              >
+                {children.map((child) => (
+                  <MenuItem key={child.id} value={child.id}>
+                    {child.name} (age {child.age})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setChildDialogActivity(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleChildDialogConfirm}
+            disabled={children.length === 0 || !selectedChildId}
+          >
+            Add to cart
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

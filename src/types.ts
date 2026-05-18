@@ -25,6 +25,7 @@ export interface Activity {
 
 export interface CartItem {
   id: string;
+  child: Child;
   activity: Activity;
   createdAt: string;
 }
@@ -41,6 +42,7 @@ export interface CheckoutSessionResponse {
 
 export interface ActivityBooking {
   id: string;
+  child?: Child;
   activity: Activity;
   paymentRecordId?: string;
   status: string;

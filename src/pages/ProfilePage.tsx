@@ -117,6 +117,11 @@ export default function ProfilePage() {
                           <Typography variant="body2" color="text.secondary">
                             {booking.activity.category} • {booking.activity.city}
                           </Typography>
+                          {booking.child && (
+                            <Typography variant="body2" color="text.secondary">
+                              Child: {booking.child.name} (age {booking.child.age})
+                            </Typography>
+                          )}
                           <Typography variant="body2" color="text.secondary">
                             Booked: {formatDate(booking.createdAt)}
                           </Typography>

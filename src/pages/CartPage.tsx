@@ -133,6 +133,9 @@ export default function CartPage() {
                 {item.activity.category} • {item.activity.city}
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
+                For: <strong>{item.child?.name ?? 'Unknown child'}</strong> (age {item.child?.age})
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
                 Price: {item.activity.priceGbp != null ? `£${item.activity.priceGbp.toFixed(2)}` : 'Free'}
               </Typography>
               <Typography variant="body2" color="text.secondary">

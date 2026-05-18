@@ -20,7 +20,37 @@ import { createChild, fetchChildren, updateChild } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import ChildCard from '../components/ChildCard';
 
-const initialForm = { name: '', dateOfBirth: '' };
+const initialForm = {
+  name: '',
+  dateOfBirth: '',
+  preferredCity: '',
+  interests: '',
+  maxBudgetGbp: '',
+  availableTimes: '',
+  travelRadiusKm: '',
+  postcode: ''
+};
+
+function calculateAge(dateOfBirth: string) {
+  if (!dateOfBirth) return 0;
+
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const birthdayHasPassed =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+
+  if (!birthdayHasPassed) {
+    age -= 1;
+  }
+
+  return Math.max(age, 0);
+}
+
+function optionalNumber(value: string) {
+  return value === '' ? undefined : Number(value);
+}
 
 export default function ChildrenPage() {
   const { user } = useAuth();
@@ -52,7 +82,17 @@ export default function ChildrenPage() {
     if (!user || !user.parentId || !createForm.name || !createForm.dateOfBirth) {
       return;
     }
-    await createChild(user.parentId, createForm.name, createForm.dateOfBirth);
+    await createChild(user.parentId, {
+      name: createForm.name,
+      dateOfBirth: createForm.dateOfBirth,
+      age: calculateAge(createForm.dateOfBirth),
+      preferredCity: createForm.preferredCity || undefined,
+      interests: createForm.interests || undefined,
+      maxBudgetGbp: optionalNumber(createForm.maxBudgetGbp),
+      availableTimes: createForm.availableTimes || undefined,
+      travelRadiusKm: optionalNumber(createForm.travelRadiusKm),
+      postcode: createForm.postcode || undefined
+    });
     setCreateForm(initialForm);
     refreshChildren();
   };
@@ -87,8 +127,8 @@ export default function ChildrenPage() {
         <Typography variant="h6" gutterBottom>
           Add a new child
         </Typography>
-        <Grid container spacing={2} alignItems="flex-end">
-          <Grid item xs={12} md={5}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={4}>
             <TextField
               fullWidth
               label="Name"
@@ -96,7 +136,7 @@ export default function ChildrenPage() {
               onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))}
             />
           </Grid>
-          <Grid item xs={12} md={5}>
+          <Grid item xs={12} md={4}>
             <TextField
               fullWidth
               label="Date of birth"
@@ -106,7 +146,67 @@ export default function ChildrenPage() {
               onChange={(event) => setCreateForm((prev) => ({ ...prev, dateOfBirth: event.target.value }))}
             />
           </Grid>
-          <Grid item xs={12} md={2}>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Age"
+              type="number"
+              value={createForm.dateOfBirth ? calculateAge(createForm.dateOfBirth) : ''}
+              InputProps={{ readOnly: true }}
+              helperText="Calculated from date of birth"
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Preferred city"
+              value={createForm.preferredCity}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, preferredCity: event.target.value }))}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Interests"
+              value={createForm.interests}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, interests: event.target.value }))}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Max budget (£)"
+              type="number"
+              value={createForm.maxBudgetGbp}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, maxBudgetGbp: event.target.value }))}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Available times"
+              value={createForm.availableTimes}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, availableTimes: event.target.value }))}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Travel radius (km)"
+              type="number"
+              value={createForm.travelRadiusKm}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, travelRadiusKm: event.target.value }))}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Postcode"
+              value={createForm.postcode}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, postcode: event.target.value }))}
+            />
+          </Grid>
+          <Grid item xs={12} md={3}>
             <Button variant="contained" fullWidth onClick={handleCreate} disabled={!user?.parentId}>
               Add child
             </Button>
