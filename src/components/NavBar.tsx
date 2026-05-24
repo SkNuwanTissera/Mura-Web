@@ -23,20 +23,32 @@ export default function NavBar() {
     <AppBar position="static" color="primary" elevation={2}>
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Typography variant="h6" component="div" sx={{ mr: 4 }}>
+          <Typography variant="h6" sx={{ mr: 4 }}>
             Mura Web
           </Typography>
+          <NavLink to="/activities" style={linkStyle}>
+            Activities
+          </NavLink>
           {user ? (
             <>
               <NavLink to="/" style={linkStyle}>
                 Home
               </NavLink>
-              <NavLink to="/activities" style={linkStyle}>
-                Activities
+              {user.role === 'PARENT' ? (
+                <>
+                  <NavLink to="/children" style={linkStyle}>
+                    Children
+                  </NavLink>
+                </>
+              ) : null}
+              <NavLink to="/providers" style={linkStyle}>
+                Providers
               </NavLink>
-              <NavLink to="/children" style={linkStyle}>
-                Children
-              </NavLink>
+              {user.role === 'ADMIN' ? (
+                <NavLink to="/admin/users" style={linkStyle}>
+                  Users
+                </NavLink>
+              ) : null}
               <NavLink to="/profile" style={linkStyle}>
                 Profile
               </NavLink>
@@ -55,17 +67,19 @@ export default function NavBar() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {user ? (
             <>
-              <IconButton
-                color="inherit"
-                component={NavLink}
-                to="/cart"
-                aria-label="Cart"
-                sx={{ mr: 1 }}
-              >
-                <Badge badgeContent={0} color="error">
-                  <ShoppingCartIcon />
-                </Badge>
-              </IconButton>
+              {user.role === 'PARENT' ? (
+                <IconButton
+                  color="inherit"
+                  component={NavLink}
+                  to="/cart"
+                  aria-label="Cart"
+                  sx={{ mr: 1 }}
+                >
+                  <Badge badgeContent={0} color="error">
+                    <ShoppingCartIcon />
+                  </Badge>
+                </IconButton>
+              ) : null}
               <Button color="inherit" onClick={() => navigate('/profile')}>
                 {user.name}
               </Button>

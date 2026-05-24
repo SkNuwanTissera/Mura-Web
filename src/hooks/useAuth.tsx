@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { User } from '../types';
 import { loginUser, signupUser, googleSignInWithToken } from '../api';
 import { authorizeWithGoogle } from '../googleAuth';
+import { clearAuth, getStoredUser, persistAuth } from '../authStorage';
 
 interface RegisterData {
   name: string;
@@ -18,20 +19,12 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const AUTH_STORAGE_KEY = 'mura-web-user';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => getStoredUser());
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored) as User);
-      } catch {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY);
-      }
-    }
+    setUser(getStoredUser());
   }, []);
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -42,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login: async (email: string, password: string) => {
         try {
           const nextUser = await loginUser(email.trim(), password);
-          window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
+          persistAuth(nextUser);
           setUser(nextUser);
           return { success: true, message: 'Login successful.' };
         } catch (error) {
@@ -57,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const idToken = await authorizeWithGoogle(googleClientId);
           const nextUser = await googleSignInWithToken(idToken);
-          window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
+          persistAuth(nextUser);
           setUser(nextUser);
           return { success: true, message: 'Signed in with Google.' };
         } catch (error) {
@@ -73,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       },
       logout: () => {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY);
+        clearAuth();
         setUser(null);
       }
     }),

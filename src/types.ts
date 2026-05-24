@@ -1,13 +1,43 @@
+export type UserRole = 'PARENT' | 'PROVIDER' | 'ADMIN';
+
 export interface User {
+  id: string;
   name: string;
   email: string;
+  role: UserRole;
   parentId?: string;
+  providerId?: string;
+  token?: string;
+}
+
+export interface ManagedUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  parentId?: string;
+  providerId?: string;
+  providerName?: string;
+  createdAt?: string;
+}
+
+export interface Provider {
+  id: string;
+  name: string;
+  description?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  city?: string;
+  address?: string;
+  createdAt?: string;
 }
 
 export interface Activity {
   id: string;
   name: string;
   category: string;
+  providerId?: string;
   providerName: string;
   locationName: string;
   address: string;
@@ -90,4 +120,13 @@ export interface PageResult<T> {
   total: number;
   page: number;
   limit: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  childId?: string;
+  activities?: Activity[];
+  createdAt?: string;
 }

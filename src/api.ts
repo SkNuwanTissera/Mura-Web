@@ -1,4 +1,5 @@
-import { Activity, ActivityBooking, ActivitySearchFilters, CartCheckoutResult, CheckoutSessionResponse, CartItem, Child, PaymentHistory, User, PageResult } from './types';
+import { Activity, ActivityBooking, ActivitySearchFilters, CartCheckoutResult, CheckoutSessionResponse, CartItem, Child, ChatMessage, ManagedUser, PaymentHistory, Provider, User, PageResult, UserRole } from './types';
+import { authHeaders, normalizeAuthUser } from './authStorage';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
@@ -37,7 +38,8 @@ export async function loginUser(email: string, password: string): Promise<User> 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
-  return parseJson<User>(response);
+  const raw = await parseJson<Record<string, unknown>>(response);
+  return normalizeAuthUser(raw);
 }
 
 export async function signupUser(name: string, email: string, password: string): Promise<User> {
@@ -46,7 +48,8 @@ export async function signupUser(name: string, email: string, password: string):
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password })
   });
-  return parseJson<User>(response);
+  const raw = await parseJson<Record<string, unknown>>(response);
+  return normalizeAuthUser(raw);
 }
 
 export async function googleSignInWithToken(idToken: string): Promise<User> {
@@ -55,7 +58,43 @@ export async function googleSignInWithToken(idToken: string): Promise<User> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken })
   });
-  return parseJson<User>(response);
+  const raw = await parseJson<Record<string, unknown>>(response);
+  return normalizeAuthUser(raw);
+}
+
+export async function fetchCurrentUser(): Promise<User> {
+  const response = await fetch(`${apiBase}/api/auth/me`, { headers: authHeaders(false) });
+  const raw = await parseJson<Record<string, unknown>>(response);
+  return normalizeAuthUser(raw);
+}
+
+function normalizeManagedUser(raw: Record<string, unknown>): ManagedUser {
+  return {
+    id: String(raw.id),
+    name: String(raw.name ?? ''),
+    email: String(raw.email ?? ''),
+    role: (raw.role as UserRole) ?? 'PARENT',
+    parentId: (raw.parentId ?? raw.parent_id) as string | undefined,
+    providerId: (raw.providerId ?? raw.provider_id) as string | undefined,
+    providerName: (raw.providerName ?? raw.provider_name) as string | undefined,
+    createdAt: (raw.createdAt ?? raw.created_at) as string | undefined,
+  };
+}
+
+export async function fetchManagedUsers(): Promise<ManagedUser[]> {
+  const response = await fetch(`${apiBase}/api/admin/users`, { headers: authHeaders(false) });
+  const rawItems = await parseJson<Record<string, unknown>[]>(response);
+  return rawItems.map(normalizeManagedUser);
+}
+
+export async function updateUserRole(userId: string, role: UserRole, providerId?: string): Promise<ManagedUser> {
+  const response = await fetch(`${apiBase}/api/admin/users/${userId}/role`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ role, providerId }),
+  });
+  const raw = await parseJson<Record<string, unknown>>(response);
+  return normalizeManagedUser(raw);
 }
 
 function normalizeActivity(raw: any): Activity {
@@ -63,6 +102,7 @@ function normalizeActivity(raw: any): Activity {
     id: raw.id,
     name: raw.name,
     category: raw.category,
+    providerId: raw.provider_id ?? raw.providerId,
     providerName: raw.provider_name ?? raw.providerName ?? '',
     locationName: raw.location_name ?? raw.locationName ?? '',
     address: raw.address ?? '',
@@ -77,6 +117,118 @@ function normalizeActivity(raw: any): Activity {
     priceGbp: raw.price_gbp ?? raw.priceGbp,
     contactPhone: raw.contact_phone ?? raw.contactPhone,
   };
+}
+
+function normalizeProvider(raw: any): Provider {
+  return {
+    id: raw.id,
+    name: raw.name,
+    description: raw.description,
+    email: raw.email,
+    phone: raw.phone,
+    website: raw.website,
+    city: raw.city,
+    address: raw.address,
+    createdAt: raw.created_at ?? raw.createdAt,
+  };
+}
+
+export async function fetchProviders(): Promise<Provider[]> {
+  const response = await fetch(`${apiBase}/api/providers`, { headers: authHeaders(false) });
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeProvider);
+}
+
+export async function fetchProviderById(id: string): Promise<Provider> {
+  const response = await fetch(`${apiBase}/api/providers/${id}`, { headers: authHeaders(false) });
+  const raw = await parseJson<any>(response);
+  return normalizeProvider(raw);
+}
+
+export async function createProvider(data: Omit<Provider, 'id' | 'createdAt'>): Promise<Provider> {
+  const response = await fetch(`${apiBase}/api/providers`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeProvider(raw);
+}
+
+export async function updateProvider(id: string, data: Partial<Omit<Provider, 'id' | 'createdAt'>>): Promise<Provider> {
+  const response = await fetch(`${apiBase}/api/providers/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeProvider(raw);
+}
+
+export async function deleteProvider(id: string): Promise<void> {
+  await fetch(`${apiBase}/api/providers/${id}`, { method: 'DELETE', headers: authHeaders(false) });
+}
+
+export async function fetchActivitiesByProvider(providerId: string): Promise<Activity[]> {
+  const response = await fetch(`${apiBase}/api/providers/${providerId}/activities`, { headers: authHeaders(false) });
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeActivity);
+}
+
+export async function createActivity(data: Partial<Activity>): Promise<Activity> {
+  const response = await fetch(`${apiBase}/api/activities`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      provider_id: data.providerId,
+      name: data.name,
+      category: data.category,
+      location_name: data.locationName,
+      address: data.address,
+      city: data.city,
+      min_age: data.minAge,
+      max_age: data.maxAge,
+      price_gbp: data.priceGbp,
+      start_time: data.startTime,
+      end_time: data.endTime,
+      availability_slots: data.availabilitySlots,
+      contact_phone: data.contactPhone,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    }),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeActivity(raw);
+}
+
+export async function updateActivity(id: string, data: Partial<Activity>): Promise<Activity> {
+  const response = await fetch(`${apiBase}/api/activities/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      provider_id: data.providerId,
+      name: data.name,
+      category: data.category,
+      location_name: data.locationName,
+      address: data.address,
+      city: data.city,
+      min_age: data.minAge,
+      max_age: data.maxAge,
+      price_gbp: data.priceGbp,
+      start_time: data.startTime,
+      end_time: data.endTime,
+      availability_slots: data.availabilitySlots,
+      contact_phone: data.contactPhone,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    }),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeActivity(raw);
+}
+
+export async function deleteActivity(id: string): Promise<void> {
+  await fetch(`${apiBase}/api/activities/${id}`, { method: 'DELETE', headers: authHeaders(false) });
 }
 
 export async function searchActivities(filters: ActivitySearchFilters): Promise<PageResult<Activity>> {
@@ -162,7 +314,7 @@ function normalizePaymentHistory(raw: any): PaymentHistory {
 export async function fetchCartItems(parentId: string): Promise<CartItem[]> {
   const url = new URL('/api/cart', apiBase);
   url.searchParams.set('parentId', parentId);
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
   const rawItems = await parseJson<any[]>(response);
   return rawItems.map(normalizeCartItem);
 }
@@ -170,7 +322,7 @@ export async function fetchCartItems(parentId: string): Promise<CartItem[]> {
 export async function fetchBookings(parentId: string): Promise<ActivityBooking[]> {
   const url = new URL('/api/bookings', apiBase);
   url.searchParams.set('parentId', parentId);
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
   const rawItems = await parseJson<any[]>(response);
   return rawItems.map(normalizeActivityBooking);
 }
@@ -178,7 +330,7 @@ export async function fetchBookings(parentId: string): Promise<ActivityBooking[]
 export async function fetchPaymentHistory(parentId: string): Promise<PaymentHistory[]> {
   const url = new URL('/api/payments/history', apiBase);
   url.searchParams.set('parentId', parentId);
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
   const rawItems = await parseJson<any[]>(response);
   return rawItems.map(normalizePaymentHistory);
 }
@@ -186,7 +338,7 @@ export async function fetchPaymentHistory(parentId: string): Promise<PaymentHist
 export async function addActivityToCart(parentId: string, activityId: string, childId: string): Promise<CartItem> {
   const response = await fetch(`${apiBase}/api/cart`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({ parent_id: parentId, activity_id: activityId, child_id: childId })
   });
   const rawItem = await parseJson<any>(response);
@@ -195,7 +347,8 @@ export async function addActivityToCart(parentId: string, activityId: string, ch
 
 export async function removeCartItem(cartItemId: string): Promise<void> {
   await fetch(`${apiBase}/api/cart/${cartItemId}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    headers: authHeaders(false),
   });
 }
 
@@ -212,7 +365,7 @@ export async function createCheckoutSession(request: {
 }): Promise<CheckoutSessionResponse> {
   const response = await fetch(`${apiBase}/api/cart/checkout-session`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({
       parent_id: request.parentId,
       billing_name: request.billingName,
@@ -236,7 +389,8 @@ export async function checkoutCart(parentId: string): Promise<CartCheckoutResult
   const url = new URL('/api/cart/checkout', apiBase);
   url.searchParams.set('parentId', parentId);
   const response = await fetch(url.toString(), {
-    method: 'POST'
+    method: 'POST',
+    headers: authHeaders(false),
   });
   const result = await parseJson<any>(response);
   return {
@@ -261,8 +415,9 @@ export async function getCities(): Promise<string[]> {
 export async function fetchChildren(parentId: string): Promise<Child[]> {
   const url = new URL('/api/children', apiBase);
   url.searchParams.set('parentId', parentId);
-  const response = await fetch(url.toString());
-  return parseJson<Child[]>(response);
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeChild);
 }
 
 export type ChildInput = Omit<Child, 'id'>;
@@ -273,7 +428,7 @@ export async function createChild(parentId: string, child: ChildInput): Promise<
 
   const response = await fetch(url.toString(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(child)
   });
   return parseJson<Child>(response);
@@ -282,8 +437,38 @@ export async function createChild(parentId: string, child: ChildInput): Promise<
 export async function updateChild(childId: string, child: Child): Promise<Child> {
   const response = await fetch(`${apiBase}/api/children/${childId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(child)
   });
   return parseJson<Child>(response);
+}
+
+function normalizeChatMessage(raw: any): ChatMessage {
+  return {
+    id: raw.id,
+    role: raw.role,
+    content: raw.content,
+    childId: raw.childId ?? raw.child_id,
+    activities: Array.isArray(raw.activities) ? raw.activities.map(normalizeActivity) : undefined,
+    createdAt: raw.createdAt ?? raw.created_at,
+  };
+}
+
+export async function fetchChatHistory(parentId: string, childId: string): Promise<ChatMessage[]> {
+  const url = new URL('/api/chat/history', apiBase);
+  url.searchParams.set('parentId', parentId);
+  url.searchParams.set('childId', childId);
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeChatMessage);
+}
+
+export async function sendChatMessage(parentId: string, childId: string, message: string): Promise<ChatMessage> {
+  const response = await fetch(`${apiBase}/api/chat`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ parentId, childId, message }),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeChatMessage(raw);
 }

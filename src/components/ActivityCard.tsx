@@ -1,5 +1,7 @@
-import { Card, CardContent, CardActions, Button, Typography, Chip, Stack, Box } from '@mui/material';
+import { Card, CardContent, CardActions, Button, Typography, Chip, Stack, Box, Link } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import { Activity } from '../types';
+import { formatAvailabilitySlotLabel } from '../utils/availabilitySlots';
 
 export default function ActivityCard({
   activity,
@@ -39,7 +41,19 @@ export default function ActivityCard({
         </Typography>
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          Provider: {provider}
+          Provider:{' '}
+          {activity.providerId ? (
+            <Link
+              component={RouterLink}
+              to={`/providers/${activity.providerId}`}
+              underline="hover"
+              color="primary"
+            >
+              {provider}
+            </Link>
+          ) : (
+            provider
+          )}
         </Typography>
         <Typography variant="body2" sx={{ mb: 1 }}>
           Location: {location}
@@ -55,9 +69,13 @@ export default function ActivityCard({
         </Box>
 
         {activity.availabilitySlots?.length > 0 && (
-          <Typography variant="body2" color="text.secondary">
-            Available slots: {activity.availabilitySlots.join(', ')}
-          </Typography>
+          <Box component="div" sx={{ color: 'text.secondary' }}>
+            {activity.availabilitySlots.map((slot) => (
+              <Typography key={slot} variant="body2" color="text.secondary">
+                {formatAvailabilitySlotLabel(slot)}
+              </Typography>
+            ))}
+          </Box>
         )}
       </CardContent>
 

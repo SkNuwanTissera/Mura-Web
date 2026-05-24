@@ -23,7 +23,8 @@ import {
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SortIcon from '@mui/icons-material/Sort';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { Activity, Child } from '../types';
+import AddIcon from '@mui/icons-material/Add';
+import { Activity, Child, Provider } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import {
   getCategories,
@@ -32,16 +33,30 @@ import {
   searchActivities,
   addActivityToCart,
   fetchChildren,
+  fetchProviders,
+  createActivity,
 } from '../api';
 import ActivityCard from '../components/ActivityCard';
+import ActivityFormFields from '../components/ActivityFormFields';
+import {
+  activityFormStateToPayload,
+  emptyActivityFormState,
+  validateActivityFormState,
+  ActivityFormState,
+} from '../utils/activityForm';
 
 export default function ActivitiesPage() {
   const [filters, setFilters] = useState({ age: '', category: '', city: '', locationName: '', postcode: '', radiusMiles: '' });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [activityForm, setActivityForm] = useState<ActivityFormState>(emptyActivityFormState());
+  const [activitySaving, setActivitySaving] = useState(false);
+  const [activityFormError, setActivityFormError] = useState('');
   const [cartLoading, setCartLoading] = useState<string | null>(null);
   const [cartMessage, setCartMessage] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -59,16 +74,25 @@ export default function ActivitiesPage() {
 
   const { user } = useAuth();
 
+  const canManageActivities = user?.role === 'ADMIN' || user?.role === 'PROVIDER';
+  const isParent = user?.role === 'PARENT';
+
   useEffect(() => {
     getCategories().then(setCategories).catch(() => setCategories([]));
     getCities().then(setCities).catch(() => setCities([]));
   }, []);
 
   useEffect(() => {
-    if (user?.parentId) {
+    if (user && (user.role === 'ADMIN' || user.role === 'PROVIDER')) {
+      fetchProviders().then(setProviders).catch(() => setProviders([]));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user?.parentId && user.role === 'PARENT') {
       fetchChildren(user.parentId).then(setChildren).catch(() => setChildren([]));
     }
-  }, [user?.parentId]);
+  }, [user?.parentId, user?.role]);
 
   useEffect(() => {
     loadActivities(page, filters, sortOption);
@@ -157,8 +181,12 @@ export default function ActivitiesPage() {
   };
 
   const handleAddToCartClick = (activityId: string) => {
-    if (!user?.parentId) {
-      setCartMessage('Please log in and ensure your account is connected to a parent profile before adding to cart.');
+    if (!user || user.role !== 'PARENT') {
+      setCartMessage('Sign in as a parent to add activities to your cart.');
+      return;
+    }
+    if (!user.parentId) {
+      setCartMessage('Your parent profile is not linked to this account.');
       return;
     }
     setCartMessage('');
@@ -201,6 +229,39 @@ export default function ActivitiesPage() {
   const handleSortChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSortOption(event.target.value);
     setSortOpen(false);
+  };
+
+  const handleOpenActivityDialog = () => {
+    const defaultProviderId = user?.role === 'PROVIDER'
+      ? (user.providerId ?? '')
+      : (providers.length === 1 ? providers[0].id : '');
+    setActivityForm(emptyActivityFormState(defaultProviderId));
+    setActivityFormError('');
+    setActivityDialogOpen(true);
+  };
+
+  const handleCreateActivity = async () => {
+    const validationError = validateActivityFormState(activityForm);
+    if (validationError) {
+      setActivityFormError(validationError);
+      return;
+    }
+
+    setActivitySaving(true);
+    setActivityFormError('');
+    try {
+      await createActivity(activityFormStateToPayload(activityForm, activityForm.providerId));
+      setActivityDialogOpen(false);
+      setActivityForm(emptyActivityFormState());
+      setPage(1);
+      await loadActivities(1, filters, sortOption);
+      getCategories().then(setCategories).catch(() => setCategories([]));
+      getCities().then(setCities).catch(() => setCities([]));
+    } catch (err) {
+      setActivityFormError(err instanceof Error ? err.message : 'Unable to create activity.');
+    } finally {
+      setActivitySaving(false);
+    }
   };
 
   const chips = useMemo(
@@ -257,10 +318,52 @@ export default function ActivitiesPage() {
         >
           Refresh
         </Button>
+        <Button
+          startIcon={<AddIcon />}
+          variant="contained"
+          color="secondary"
+          onClick={handleOpenActivityDialog}
+          sx={{ display: canManageActivities ? 'inline-flex' : 'none' }}
+        >
+          Add activity
+        </Button>
         <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
           {totalCount} activit{totalCount === 1 ? 'y' : 'ies'} found
         </Typography>
       </Stack>
+
+      <Dialog open={activityDialogOpen} onClose={() => setActivityDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Add activity</DialogTitle>
+        <DialogContent>
+          <ActivityFormFields
+            form={activityForm}
+            onChange={setActivityForm}
+            categories={categories}
+            cities={cities}
+            providers={providers}
+          />
+          {providers.length === 0 && (
+            <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+              Add a provider first before creating activities.
+            </Typography>
+          )}
+          {activityFormError && (
+            <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+              {activityFormError}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setActivityDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateActivity}
+            disabled={activitySaving || providers.length === 0}
+          >
+            {activitySaving ? 'Saving...' : 'Create activity'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={filterOpen} onClose={() => setFilterOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Filter activities</DialogTitle>
@@ -391,7 +494,7 @@ export default function ActivitiesPage() {
                 key={activity.id}
                 activity={activity}
                 loading={loading}
-                onAddToCart={() => handleAddToCartClick(activity.id)}
+                onAddToCart={isParent ? () => handleAddToCartClick(activity.id) : undefined}
               />
             ))}
           </Stack>

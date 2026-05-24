@@ -90,14 +90,17 @@ export default function ProfilePage() {
           <Typography variant="body2" color="text.secondary">
             {user?.email}
           </Typography>
+          {user?.role ? (
+            <Chip label={user.role} size="small" sx={{ mt: 1 }} />
+          ) : null}
         </CardContent>
       </Card>
 
-      {loading ? (
+      {user?.role === 'PARENT' && loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
-      ) : (
+      ) : user?.role === 'PARENT' ? (
         <Grid container spacing={3}>
           <Grid item xs={12} md={7}>
             <Card id="bookings" sx={{ p: 2, borderRadius: 4 }}>
@@ -182,6 +185,10 @@ export default function ProfilePage() {
             </Card>
           </Grid>
         </Grid>
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          Bookings and payment history are available for parent accounts.
+        </Typography>
       )}
     </Box>
   );
