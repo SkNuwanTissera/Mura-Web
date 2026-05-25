@@ -2,6 +2,7 @@ import { AppBar, Toolbar, Typography, Button, Box, IconButton, Badge } from '@mu
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import ThemeToggle from './ThemeToggle';
 
 const linkStyle = ({ isActive }: { isActive: boolean }) => ({
   color: 'inherit',
@@ -20,7 +21,7 @@ export default function NavBar() {
   };
 
   return (
-    <AppBar position="static" color="primary" elevation={2}>
+    <AppBar position="static" color="secondary" elevation={1}>
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Typography variant="h6" sx={{ mr: 4 }}>
@@ -41,9 +42,11 @@ export default function NavBar() {
                   </NavLink>
                 </>
               ) : null}
-              <NavLink to="/providers" style={linkStyle}>
-                Providers
-              </NavLink>
+              {user.role === 'ADMIN' ? (
+                <NavLink to="/providers" style={linkStyle}>
+                  Providers
+                </NavLink>
+              ) : null}
               {user.role === 'ADMIN' ? (
                 <NavLink to="/admin/users" style={linkStyle}>
                   Users
@@ -65,6 +68,7 @@ export default function NavBar() {
           )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ThemeToggle />
           {user ? (
             <>
               {user.role === 'PARENT' ? (

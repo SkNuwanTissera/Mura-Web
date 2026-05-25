@@ -35,7 +35,12 @@ import {
   fetchChildren,
   fetchProviders,
   createActivity,
+  updateActivity,
+  deleteActivity,
 } from '../api';
+import {
+  activityFormStateFromActivity,
+} from '../utils/activityForm';
 import ActivityCard from '../components/ActivityCard';
 import ActivityFormFields from '../components/ActivityFormFields';
 import {
@@ -54,6 +59,9 @@ export default function ActivitiesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [activityForm, setActivityForm] = useState<ActivityFormState>(emptyActivityFormState());
   const [activitySaving, setActivitySaving] = useState(false);
   const [activityFormError, setActivityFormError] = useState('');
@@ -235,12 +243,20 @@ export default function ActivitiesPage() {
     const defaultProviderId = user?.role === 'PROVIDER'
       ? (user.providerId ?? '')
       : (providers.length === 1 ? providers[0].id : '');
+    setEditingActivity(null);
     setActivityForm(emptyActivityFormState(defaultProviderId));
     setActivityFormError('');
     setActivityDialogOpen(true);
   };
 
-  const handleCreateActivity = async () => {
+  const handleOpenEditActivity = (activity: Activity) => {
+    setEditingActivity(activity);
+    setActivityForm(activityFormStateFromActivity(activity));
+    setActivityFormError('');
+    setActivityDialogOpen(true);
+  };
+
+  const handleSaveActivity = async () => {
     const validationError = validateActivityFormState(activityForm);
     if (validationError) {
       setActivityFormError(validationError);
@@ -250,18 +266,57 @@ export default function ActivitiesPage() {
     setActivitySaving(true);
     setActivityFormError('');
     try {
-      await createActivity(activityFormStateToPayload(activityForm, activityForm.providerId));
+      const payload = activityFormStateToPayload(activityForm, activityForm.providerId);
+      if (editingActivity) {
+        await updateActivity(editingActivity.id, payload);
+      } else {
+        await createActivity(payload);
+      }
       setActivityDialogOpen(false);
+      setEditingActivity(null);
       setActivityForm(emptyActivityFormState());
       setPage(1);
       await loadActivities(1, filters, sortOption);
       getCategories().then(setCategories).catch(() => setCategories([]));
       getCities().then(setCities).catch(() => setCities([]));
     } catch (err) {
-      setActivityFormError(err instanceof Error ? err.message : 'Unable to create activity.');
+      setActivityFormError(
+        err instanceof Error
+          ? err.message
+          : editingActivity
+            ? 'Unable to update activity.'
+            : 'Unable to create activity.'
+      );
     } finally {
       setActivitySaving(false);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    setDeleteSaving(true);
+    setError('');
+    try {
+      await deleteActivity(deleteTarget.id);
+      setDeleteTarget(null);
+      await loadActivities(page, filters, sortOption);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete activity.');
+    } finally {
+      setDeleteSaving(false);
+    }
+  };
+
+  const canEditActivity = (activity: Activity) => {
+    if (!canManageActivities) {
+      return false;
+    }
+    if (user?.role === 'ADMIN') {
+      return true;
+    }
+    return user?.role === 'PROVIDER' && !!user.providerId && activity.providerId === user.providerId;
   };
 
   const chips = useMemo(
@@ -332,8 +387,16 @@ export default function ActivitiesPage() {
         </Typography>
       </Stack>
 
-      <Dialog open={activityDialogOpen} onClose={() => setActivityDialogOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Add activity</DialogTitle>
+      <Dialog
+        open={activityDialogOpen}
+        onClose={() => {
+          setActivityDialogOpen(false);
+          setEditingActivity(null);
+        }}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>{editingActivity ? 'Edit activity' : 'Add activity'}</DialogTitle>
         <DialogContent>
           <ActivityFormFields
             form={activityForm}
@@ -341,8 +404,9 @@ export default function ActivitiesPage() {
             categories={categories}
             cities={cities}
             providers={providers}
+            showProviderSelect={user?.role === 'ADMIN'}
           />
-          {providers.length === 0 && (
+          {!editingActivity && providers.length === 0 && user?.role === 'ADMIN' && (
             <Typography variant="body2" color="error" sx={{ mt: 2 }}>
               Add a provider first before creating activities.
             </Typography>
@@ -354,13 +418,37 @@ export default function ActivitiesPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setActivityDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setActivityDialogOpen(false);
+              setEditingActivity(null);
+            }}
+          >
+            Cancel
+          </Button>
           <Button
             variant="contained"
-            onClick={handleCreateActivity}
-            disabled={activitySaving || providers.length === 0}
+            onClick={handleSaveActivity}
+            disabled={activitySaving || (!editingActivity && user?.role === 'ADMIN' && providers.length === 0)}
           >
-            {activitySaving ? 'Saving...' : 'Create activity'}
+            {activitySaving ? 'Saving...' : editingActivity ? 'Save changes' : 'Create activity'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete activity</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Delete &quot;{deleteTarget?.name}&quot;? This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleteSaving}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="error" onClick={handleConfirmDelete} disabled={deleteSaving}>
+            {deleteSaving ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -495,6 +583,8 @@ export default function ActivitiesPage() {
                 activity={activity}
                 loading={loading}
                 onAddToCart={isParent ? () => handleAddToCartClick(activity.id) : undefined}
+                onEdit={canEditActivity(activity) ? () => handleOpenEditActivity(activity) : undefined}
+                onDelete={canEditActivity(activity) ? () => setDeleteTarget(activity) : undefined}
               />
             ))}
           </Stack>

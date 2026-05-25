@@ -5,10 +5,12 @@ import {
   Button,
   Chip,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Paper,
   Select,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -16,15 +18,18 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { fetchManagedUsers, fetchProviders, updateUserRole } from '../api';
+import { fetchManagedUsers, fetchProviders, updateUserEnabled, updateUserRole } from '../api';
+import { useAuth } from '../hooks/useAuth';
 import type { ManagedUser, Provider, UserRole } from '../types';
 
 export default function AdminUsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
   const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({});
   const [providerDrafts, setProviderDrafts] = useState<Record<string, string>>({});
 
@@ -74,13 +79,27 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleToggleEnabled = async (user: ManagedUser, enabled: boolean) => {
+    setTogglingUserId(user.id);
+    setError('');
+    try {
+      const updated = await updateUserEnabled(user.id, enabled);
+      setUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update account status.');
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
         User management
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Promote parents to providers or admins. Self sign-up always creates parent accounts.
+        Promote parents to providers or admins, and enable or disable sign-in for any account.
+        Self sign-up always creates parent accounts.
       </Typography>
 
       {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
@@ -91,6 +110,7 @@ export default function AdminUsersPage() {
             <TableRow>
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Current role</TableCell>
               <TableCell>New role</TableCell>
               <TableCell>Provider</TableCell>
@@ -100,24 +120,41 @@ export default function AdminUsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6}>Loading users...</TableCell>
+                <TableCell colSpan={7}>Loading users...</TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6}>No users found.</TableCell>
+                <TableCell colSpan={7}>No users found.</TableCell>
               </TableRow>
             ) : (
               users.map((user) => {
                 const draftRole = roleDrafts[user.id] ?? user.role;
+                const isSelf = currentUser?.id === user.id;
                 return (
-                  <TableRow key={user.id}>
+                  <TableRow
+                    key={user.id}
+                    sx={{ opacity: user.enabled ? 1 : 0.65 }}
+                  >
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={user.enabled}
+                            disabled={togglingUserId === user.id || (isSelf && user.enabled)}
+                            onChange={(_, checked) => handleToggleEnabled(user, checked)}
+                            color="primary"
+                          />
+                        }
+                        label={user.enabled ? 'Enabled' : 'Disabled'}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Chip size="small" label={user.role} />
                     </TableCell>
                     <TableCell>
-                      <FormControl size="small" sx={{ minWidth: 140 }}>
+                      <FormControl size="small" sx={{ minWidth: 140 }} disabled={!user.enabled}>
                         <InputLabel>Role</InputLabel>
                         <Select
                           label="Role"
@@ -137,7 +174,7 @@ export default function AdminUsersPage() {
                     </TableCell>
                     <TableCell>
                       {draftRole === 'PROVIDER' ? (
-                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <FormControl size="small" sx={{ minWidth: 180 }} disabled={!user.enabled}>
                           <InputLabel>Provider</InputLabel>
                           <Select
                             label="Provider"
@@ -164,10 +201,10 @@ export default function AdminUsersPage() {
                       <Button
                         size="small"
                         variant="contained"
-                        disabled={savingUserId === user.id}
+                        disabled={!user.enabled || savingUserId === user.id}
                         onClick={() => handleSave(user)}
                       >
-                        Save
+                        Save role
                       </Button>
                     </TableCell>
                   </TableRow>

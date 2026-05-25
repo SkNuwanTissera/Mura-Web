@@ -74,6 +74,7 @@ function normalizeManagedUser(raw: Record<string, unknown>): ManagedUser {
     name: String(raw.name ?? ''),
     email: String(raw.email ?? ''),
     role: (raw.role as UserRole) ?? 'PARENT',
+    enabled: raw.enabled !== false,
     parentId: (raw.parentId ?? raw.parent_id) as string | undefined,
     providerId: (raw.providerId ?? raw.provider_id) as string | undefined,
     providerName: (raw.providerName ?? raw.provider_name) as string | undefined,
@@ -92,6 +93,16 @@ export async function updateUserRole(userId: string, role: UserRole, providerId?
     method: 'PUT',
     headers: authHeaders(),
     body: JSON.stringify({ role, providerId }),
+  });
+  const raw = await parseJson<Record<string, unknown>>(response);
+  return normalizeManagedUser(raw);
+}
+
+export async function updateUserEnabled(userId: string, enabled: boolean): Promise<ManagedUser> {
+  const response = await fetch(`${apiBase}/api/admin/users/${userId}/enabled`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ enabled }),
   });
   const raw = await parseJson<Record<string, unknown>>(response);
   return normalizeManagedUser(raw);
@@ -385,9 +396,12 @@ export async function createCheckoutSession(request: {
   };
 }
 
-export async function checkoutCart(parentId: string): Promise<CartCheckoutResult> {
-  const url = new URL('/api/cart/checkout', apiBase);
+export async function checkoutCart(parentId: string, sessionId?: string): Promise<CartCheckoutResult> {
+  const url = new URL('/api/cart/checkout/confirm', apiBase);
   url.searchParams.set('parentId', parentId);
+  if (sessionId) {
+    url.searchParams.set('sessionId', sessionId);
+  }
   const response = await fetch(url.toString(), {
     method: 'POST',
     headers: authHeaders(false),

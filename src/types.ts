@@ -15,6 +15,7 @@ export interface ManagedUser {
   name: string;
   email: string;
   role: UserRole;
+  enabled: boolean;
   parentId?: string;
   providerId?: string;
   providerName?: string;

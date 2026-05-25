@@ -1,4 +1,6 @@
 import { Card, CardContent, CardActions, Button, Typography, Chip, Stack, Box, Link } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { Link as RouterLink } from 'react-router-dom';
 import { Activity } from '../types';
 import { formatAvailabilitySlotLabel } from '../utils/availabilitySlots';
@@ -6,11 +8,15 @@ import { formatAvailabilitySlotLabel } from '../utils/availabilitySlots';
 export default function ActivityCard({
   activity,
   loading,
-  onAddToCart
+  onAddToCart,
+  onEdit,
+  onDelete,
 }: {
   activity: Activity;
   loading: boolean;
   onAddToCart?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const provider = activity.providerName || 'Unknown provider';
   const location = activity.locationName || activity.address || 'Unknown location';
@@ -79,10 +85,22 @@ export default function ActivityCard({
         )}
       </CardContent>
 
-      <CardActions sx={{ justifyContent: 'flex-end', p: 1, pt: 0 }}>
-        <Button size="small" variant="contained" color="primary" onClick={onAddToCart} disabled={!onAddToCart || loading}>
-          Add to cart
-        </Button>
+      <CardActions sx={{ justifyContent: 'flex-end', p: 1, pt: 0, gap: 1, flexWrap: 'wrap' }}>
+        {onEdit ? (
+          <Button size="small" variant="outlined" startIcon={<EditIcon />} onClick={onEdit} disabled={loading}>
+            Edit
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button size="small" variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={onDelete} disabled={loading}>
+            Delete
+          </Button>
+        ) : null}
+        {onAddToCart ? (
+          <Button size="small" variant="contained" color="primary" onClick={onAddToCart} disabled={loading}>
+            Add to cart
+          </Button>
+        ) : null}
       </CardActions>
     </Card>
   );
