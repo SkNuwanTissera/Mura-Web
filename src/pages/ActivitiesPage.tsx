@@ -26,6 +26,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import { Activity, Child, Provider } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import {
   getCategories,
   getCities,
@@ -42,6 +43,7 @@ import {
   activityFormStateFromActivity,
 } from '../utils/activityForm';
 import ActivityCard from '../components/ActivityCard';
+import ActivityDetailPanel from '../components/ActivityDetailPanel';
 import ActivityFormFields from '../components/ActivityFormFields';
 import {
   activityFormStateToPayload,
@@ -49,6 +51,7 @@ import {
   validateActivityFormState,
   ActivityFormState,
 } from '../utils/activityForm';
+import { formatAvailabilitySlotLabel } from '../utils/availabilitySlots';
 
 export default function ActivitiesPage() {
   const [filters, setFilters] = useState({ age: '', category: '', city: '', locationName: '', postcode: '', radiusMiles: '' });
@@ -73,14 +76,15 @@ export default function ActivitiesPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(8);
   const [totalCount, setTotalCount] = useState(0);
-  const [mapZoom, setMapZoom] = useState(10);
-  const [mapCenter, setMapCenter] = useState({ lat: 51.5074, lon: -0.1278 });
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
   const [children, setChildren] = useState<Child[]>([]);
   const [childDialogActivity, setChildDialogActivity] = useState<string | null>(null);
   const [selectedChildId, setSelectedChildId] = useState('');
+  const [selectedAvailabilitySlot, setSelectedAvailabilitySlot] = useState('');
 
   const { user } = useAuth();
+  const { refreshCart } = useCart();
 
   const canManageActivities = user?.role === 'ADMIN' || user?.role === 'PROVIDER';
   const isParent = user?.role === 'PARENT';
@@ -167,26 +171,37 @@ export default function ActivitiesPage() {
           throw new Error('Unable to resolve postcode. Please try another postcode.');
         }
         items = filterByRadius(items, location.lat, location.lon, radiusMiles);
-        setMapCenter(location);
         setTotalCount(items.length);
       } else {
         setTotalCount(result.total);
-        const firstValid = items.find((item) => item.latitude != null && item.longitude != null);
-        if (firstValid) {
-          setMapCenter({ lat: firstValid.latitude as number, lon: firstValid.longitude as number });
-        }
       }
 
       const sorted = sortActivities(items, currentSort);
       setActivities(sorted);
+      setSelectedActivity((current) => {
+        if (!current) return null;
+        return sorted.find((item) => item.id === current.id) ?? null;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load activities from the backend. Verify the API URL and backend status.');
       setActivities([]);
       setTotalCount(0);
+      setSelectedActivity(null);
     } finally {
       setLoading(false);
     }
   };
+
+  const cartDialogActivity = useMemo(() => {
+    if (!childDialogActivity) return null;
+    return (
+      activities.find((item) => item.id === childDialogActivity) ??
+      (selectedActivity?.id === childDialogActivity ? selectedActivity : null)
+    );
+  }, [childDialogActivity, activities, selectedActivity]);
+
+  const cartDialogSlots = cartDialogActivity?.availabilitySlots ?? [];
+  const cartDialogRequiresSlot = cartDialogSlots.length > 0;
 
   const handleAddToCartClick = (activityId: string) => {
     if (!user || user.role !== 'PARENT') {
@@ -197,17 +212,30 @@ export default function ActivitiesPage() {
       setCartMessage('Your parent profile is not linked to this account.');
       return;
     }
+    const activity =
+      activities.find((item) => item.id === activityId) ??
+      (selectedActivity?.id === activityId ? selectedActivity : null);
+    const slots = activity?.availabilitySlots ?? [];
     setCartMessage('');
     setSelectedChildId(children.length > 0 ? children[0].id : '');
+    setSelectedAvailabilitySlot(slots.length > 0 ? slots[0] : '');
     setChildDialogActivity(activityId);
   };
 
   const handleChildDialogConfirm = async () => {
     if (!user?.parentId || !childDialogActivity || !selectedChildId) return;
+    if (cartDialogRequiresSlot && !selectedAvailabilitySlot) return;
+    const activityId = childDialogActivity;
     setChildDialogActivity(null);
-    setCartLoading(childDialogActivity);
+    setCartLoading(activityId);
     try {
-      await addActivityToCart(user.parentId, childDialogActivity, selectedChildId);
+      await addActivityToCart(
+        user.parentId,
+        activityId,
+        selectedChildId,
+        cartDialogRequiresSlot ? selectedAvailabilitySlot : undefined
+      );
+      await refreshCart();
       setCartMessage('Activity added to cart successfully.');
     } catch (err) {
       setCartMessage(err instanceof Error ? err.message : 'Could not add activity to cart.');
@@ -300,6 +328,9 @@ export default function ActivitiesPage() {
     setError('');
     try {
       await deleteActivity(deleteTarget.id);
+      if (selectedActivity?.id === deleteTarget.id) {
+        setSelectedActivity(null);
+      }
       setDeleteTarget(null);
       await loadActivities(page, filters, sortOption);
     } catch (err) {
@@ -324,23 +355,6 @@ export default function ActivitiesPage() {
       .filter(Boolean) as string[],
     [filters.category, filters.city, filters.postcode, filters.radiusMiles]
   );
-
-  const getMapUrl = (items: Activity[], center: { lat: number; lon: number }, zoom: number) => {
-    const url = new URL('https://staticmap.openstreetmap.de/staticmap.php');
-    url.searchParams.set('center', `${center.lat},${center.lon}`);
-    url.searchParams.set('zoom', String(zoom));
-    url.searchParams.set('size', '640x420');
-    url.searchParams.set('maptype', 'mapnik');
-
-    items
-      .filter((item) => item.latitude != null && item.longitude != null)
-      .slice(0, 20)
-      .forEach((item) => {
-        url.searchParams.append('markers', `${item.latitude},${item.longitude},red`);
-      });
-
-    return url.toString();
-  };
 
   return (
     <Box>
@@ -574,17 +588,32 @@ export default function ActivitiesPage() {
         </Typography>
       )}
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={7}>
-          <Stack spacing={3}>
+      <Grid container spacing={3} alignItems="flex-start">
+        <Grid item xs={12} md={selectedActivity ? 5 : 12}>
+          <Stack spacing={selectedActivity ? 1.5 : 3}>
             {activities.map((activity) => (
               <ActivityCard
                 key={activity.id}
                 activity={activity}
                 loading={loading}
-                onAddToCart={isParent ? () => handleAddToCartClick(activity.id) : undefined}
-                onEdit={canEditActivity(activity) ? () => handleOpenEditActivity(activity) : undefined}
-                onDelete={canEditActivity(activity) ? () => setDeleteTarget(activity) : undefined}
+                selected={selectedActivity?.id === activity.id}
+                compact={!!selectedActivity}
+                onSelect={() => setSelectedActivity(activity)}
+                onAddToCart={
+                  !selectedActivity && isParent
+                    ? () => handleAddToCartClick(activity.id)
+                    : undefined
+                }
+                onEdit={
+                  !selectedActivity && canEditActivity(activity)
+                    ? () => handleOpenEditActivity(activity)
+                    : undefined
+                }
+                onDelete={
+                  !selectedActivity && canEditActivity(activity)
+                    ? () => setDeleteTarget(activity)
+                    : undefined
+                }
               />
             ))}
           </Stack>
@@ -601,37 +630,23 @@ export default function ActivitiesPage() {
           )}
         </Grid>
 
-        <Grid item xs={12} md={5}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Typography variant="h6">Map view</Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button size="small" variant="outlined" onClick={() => setMapZoom((z) => Math.min(18, z + 1))}>
-                Zoom in
-              </Button>
-              <Button size="small" variant="outlined" onClick={() => setMapZoom((z) => Math.max(2, z - 1))}>
-                Zoom out
-              </Button>
-              <Typography variant="body2" sx={{ ml: 'auto', alignSelf: 'center' }}>
-                Zoom {mapZoom}
-              </Typography>
-            </Box>
-            <Box sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-              {activities.some((activity) => activity.latitude != null && activity.longitude != null) ? (
-                <img
-                  src={getMapUrl(activities, mapCenter, mapZoom)}
-                  alt="Activity locations map"
-                  style={{ width: '100%', display: 'block', height: '420px', objectFit: 'cover' }}
-                />
-              ) : (
-                <Box sx={{ minHeight: 420, p: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.paper' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No geocoded activity locations found. Use postcode/radius filters or update activities with coordinates.
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </Box>
-        </Grid>
+        {selectedActivity ? (
+          <Grid item xs={12} md={7}>
+            <ActivityDetailPanel
+              activity={selectedActivity}
+              onAddToCart={isParent ? () => handleAddToCartClick(selectedActivity.id) : undefined}
+              onEdit={
+                canEditActivity(selectedActivity)
+                  ? () => handleOpenEditActivity(selectedActivity)
+                  : undefined
+              }
+              onDelete={
+                canEditActivity(selectedActivity) ? () => setDeleteTarget(selectedActivity) : undefined
+              }
+              addToCartLoading={cartLoading === selectedActivity.id}
+            />
+          </Grid>
+        ) : null}
       </Grid>
 
       {!loading && !activities.length && (
@@ -641,27 +656,45 @@ export default function ActivitiesPage() {
       )}
 
       <Dialog open={!!childDialogActivity} onClose={() => setChildDialogActivity(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Select a child for this activity</DialogTitle>
+        <DialogTitle>Add to cart</DialogTitle>
         <DialogContent>
           {children.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               You have no child profiles yet. Please add a child on the Children page before adding activities to your cart.
             </Typography>
           ) : (
-            <FormControl fullWidth sx={{ mt: 1 }}>
-              <InputLabel>Child</InputLabel>
-              <Select
-                value={selectedChildId}
-                label="Child"
-                onChange={(event) => setSelectedChildId(event.target.value)}
-              >
-                {children.map((child) => (
-                  <MenuItem key={child.id} value={child.id}>
-                    {child.name} (age {child.age})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <FormControl fullWidth>
+                <InputLabel>Child</InputLabel>
+                <Select
+                  value={selectedChildId}
+                  label="Child"
+                  onChange={(event) => setSelectedChildId(event.target.value)}
+                >
+                  {children.map((child) => (
+                    <MenuItem key={child.id} value={child.id}>
+                      {child.name} (age {child.age})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {cartDialogRequiresSlot ? (
+                <FormControl fullWidth>
+                  <InputLabel>Timeslot</InputLabel>
+                  <Select
+                    value={selectedAvailabilitySlot}
+                    label="Timeslot"
+                    onChange={(event) => setSelectedAvailabilitySlot(event.target.value)}
+                  >
+                    {cartDialogSlots.map((slot) => (
+                      <MenuItem key={slot} value={slot}>
+                        {formatAvailabilitySlotLabel(slot)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : null}
+            </Stack>
           )}
         </DialogContent>
         <DialogActions>
@@ -669,7 +702,11 @@ export default function ActivitiesPage() {
           <Button
             variant="contained"
             onClick={handleChildDialogConfirm}
-            disabled={children.length === 0 || !selectedChildId}
+            disabled={
+              children.length === 0 ||
+              !selectedChildId ||
+              (cartDialogRequiresSlot && !selectedAvailabilitySlot)
+            }
           >
             Add to cart
           </Button>

@@ -149,12 +149,15 @@ export default function ChatWidget() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const selectedChild = children.find((child) => child.id === selectedChildId);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, []);
 
   useEffect(() => {
@@ -313,9 +316,12 @@ export default function ChatWidget() {
           </Box>
 
           <Box
+            ref={messagesContainerRef}
             sx={{
-              flexGrow: 1,
+              flex: 1,
+              minHeight: 0,
               overflowY: 'auto',
+              overscrollBehavior: 'contain',
               px: 2,
               py: 2,
               bgcolor: '#ece5dd',
@@ -391,7 +397,6 @@ export default function ChatWidget() {
               </Box>
             )}
 
-            <div ref={messagesEndRef} />
           </Box>
 
           {error && (

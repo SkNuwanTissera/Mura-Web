@@ -1,4 +1,4 @@
-import { Activity, ActivityBooking, ActivitySearchFilters, CartCheckoutResult, CheckoutSessionResponse, CartItem, Child, ChatMessage, ManagedUser, PaymentHistory, Provider, User, PageResult, UserRole } from './types';
+import { Activity, ActivityBooking, ActivitySearchFilters, AdminActivityBooking, AdminPaymentHistory, CartCheckoutResult, CheckoutSessionResponse, CartItem, Child, ChildRecommendations, ChatMessage, ManagedUser, PaymentHistory, Provider, User, PageResult, UserRole } from './types';
 import { authHeaders, normalizeAuthUser } from './authStorage';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || window.location.origin;
@@ -238,6 +238,12 @@ export async function updateActivity(id: string, data: Partial<Activity>): Promi
   return normalizeActivity(raw);
 }
 
+export async function fetchActivityById(id: string): Promise<Activity> {
+  const response = await fetch(`${apiBase}/api/activities/${id}`, { headers: authHeaders(false) });
+  const raw = await parseJson<any>(response);
+  return normalizeActivity(raw);
+}
+
 export async function deleteActivity(id: string): Promise<void> {
   await fetch(`${apiBase}/api/activities/${id}`, { method: 'DELETE', headers: authHeaders(false) });
 }
@@ -293,6 +299,7 @@ function normalizeCartItem(raw: any): CartItem {
     id: raw.id,
     child: normalizeChild(raw.child),
     activity: normalizeActivity(raw.activity),
+    availabilitySlot: raw.availability_slot ?? raw.availabilitySlot,
     createdAt: raw.created_at ?? raw.createdAt,
   };
 }
@@ -302,6 +309,7 @@ function normalizeActivityBooking(raw: any): ActivityBooking {
     id: raw.id,
     child: raw.child ? normalizeChild(raw.child) : undefined,
     activity: normalizeActivity(raw.activity),
+    availabilitySlot: raw.availability_slot ?? raw.availabilitySlot,
     paymentRecordId: raw.payment_record_id ?? raw.paymentRecordId,
     status: raw.status,
     createdAt: raw.created_at ?? raw.createdAt,
@@ -338,6 +346,34 @@ export async function fetchBookings(parentId: string): Promise<ActivityBooking[]
   return rawItems.map(normalizeActivityBooking);
 }
 
+export async function cancelBooking(bookingId: string): Promise<ActivityBooking> {
+  const response = await fetch(`${apiBase}/api/bookings/${bookingId}/cancel`, {
+    method: 'PATCH',
+    headers: authHeaders(false),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeActivityBooking(raw);
+}
+
+export async function updateBooking(bookingId: string, availabilitySlot: string): Promise<ActivityBooking> {
+  const response = await fetch(`${apiBase}/api/bookings/${bookingId}`, {
+    method: 'PATCH',
+    headers: authHeaders(true),
+    body: JSON.stringify({ availability_slot: availabilitySlot }),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeActivityBooking(raw);
+}
+
+export async function adminCancelBooking(bookingId: string): Promise<ActivityBooking> {
+  const response = await fetch(`${apiBase}/api/admin/bookings/${bookingId}/cancel`, {
+    method: 'PATCH',
+    headers: authHeaders(false),
+  });
+  const raw = await parseJson<any>(response);
+  return normalizeActivityBooking(raw);
+}
+
 export async function fetchPaymentHistory(parentId: string): Promise<PaymentHistory[]> {
   const url = new URL('/api/payments/history', apiBase);
   url.searchParams.set('parentId', parentId);
@@ -346,11 +382,73 @@ export async function fetchPaymentHistory(parentId: string): Promise<PaymentHist
   return rawItems.map(normalizePaymentHistory);
 }
 
-export async function addActivityToCart(parentId: string, activityId: string, childId: string): Promise<CartItem> {
+function normalizeAdminActivityBooking(raw: any): AdminActivityBooking {
+  const booking = normalizeActivityBooking(raw);
+  return {
+    ...booking,
+    parentId: String(raw.parent_id ?? raw.parentId ?? ''),
+    parentName: (raw.parent_name ?? raw.parentName) as string | undefined,
+    parentEmail: (raw.parent_email ?? raw.parentEmail) as string | undefined,
+  };
+}
+
+function normalizeAdminPaymentHistory(raw: any): AdminPaymentHistory {
+  const payment = normalizePaymentHistory(raw);
+  return {
+    ...payment,
+    parentId: String(raw.parent_id ?? raw.parentId ?? ''),
+    parentName: (raw.parent_name ?? raw.parentName) as string | undefined,
+    bookingCount: Number(raw.booking_count ?? raw.bookingCount ?? 0),
+  };
+}
+
+export async function fetchAdminBookings(filters?: {
+  status?: string;
+  q?: string;
+}): Promise<AdminActivityBooking[]> {
+  const url = new URL('/api/admin/bookings', apiBase);
+  if (filters?.status) {
+    url.searchParams.set('status', filters.status);
+  }
+  if (filters?.q) {
+    url.searchParams.set('q', filters.q);
+  }
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeAdminActivityBooking);
+}
+
+export async function fetchAdminPayments(filters?: {
+  status?: string;
+  q?: string;
+}): Promise<AdminPaymentHistory[]> {
+  const url = new URL('/api/admin/payments', apiBase);
+  if (filters?.status) {
+    url.searchParams.set('status', filters.status);
+  }
+  if (filters?.q) {
+    url.searchParams.set('q', filters.q);
+  }
+  const response = await fetch(url.toString(), { headers: authHeaders(false) });
+  const rawItems = await parseJson<any[]>(response);
+  return rawItems.map(normalizeAdminPaymentHistory);
+}
+
+export async function addActivityToCart(
+  parentId: string,
+  activityId: string,
+  childId: string,
+  availabilitySlot?: string
+): Promise<CartItem> {
   const response = await fetch(`${apiBase}/api/cart`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ parent_id: parentId, activity_id: activityId, child_id: childId })
+    body: JSON.stringify({
+      parent_id: parentId,
+      activity_id: activityId,
+      child_id: childId,
+      availability_slot: availabilitySlot,
+    })
   });
   const rawItem = await parseJson<any>(response);
   return normalizeCartItem(rawItem);
@@ -485,4 +583,42 @@ export async function sendChatMessage(parentId: string, childId: string, message
   });
   const raw = await parseJson<any>(response);
   return normalizeChatMessage(raw);
+}
+
+export async function fetchRecommendedActivities(parentId: string): Promise<ChildRecommendations[]> {
+  const children = await fetchChildren(parentId);
+  if (!children.length) {
+    return [];
+  }
+
+  const results: ChildRecommendations[] = [];
+
+  for (const child of children) {
+    let activities: Activity[];
+
+    if (child.preferredCity) {
+      const page = await searchActivities({ age: child.age, city: child.preferredCity, limit: 8 });
+      activities = page.items;
+    } else {
+      const page = await searchActivities({ age: child.age, limit: 8 });
+      activities = page.items;
+    }
+
+    if (child.maxBudgetGbp != null) {
+      activities = activities.filter(
+        (activity) => activity.priceGbp == null || activity.priceGbp <= child.maxBudgetGbp!
+      );
+    }
+
+    const unique = new Map<string, Activity>();
+    activities.forEach((activity) => unique.set(activity.id, activity));
+
+    results.push({
+      childId: child.id,
+      childName: child.name,
+      activities: Array.from(unique.values()).slice(0, 8),
+    });
+  }
+
+  return results;
 }

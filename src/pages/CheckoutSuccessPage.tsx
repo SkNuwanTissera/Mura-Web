@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { checkoutCart } from '../api';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 
 export default function CheckoutSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { refreshCart } = useCart();
   const [confirming, setConfirming] = useState(true);
   const [bookingCount, setBookingCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -21,8 +23,9 @@ export default function CheckoutSuccessPage() {
     const sessionId = searchParams.get('session_id') ?? undefined;
 
     checkoutCart(user.parentId, sessionId)
-      .then((result) => {
+      .then(async (result) => {
         setBookingCount(result.count);
+        await refreshCart();
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Could not confirm checkout yet.');

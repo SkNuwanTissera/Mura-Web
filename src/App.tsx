@@ -3,6 +3,7 @@ import { CssBaseline, Container, Box } from '@mui/material';
 import { ThemeProvider } from '@mui/material/styles';
 import { createAppTheme } from './theme';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { CartProvider } from './hooks/useCart';
 import { ThemeModeProvider, useThemeMode } from './hooks/useThemeMode';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -16,6 +17,7 @@ import ProfilePage from './pages/ProfilePage';
 import ProvidersPage from './pages/ProvidersPage';
 import ProviderPage from './pages/ProviderPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminOperationsPage from './pages/AdminOperationsPage';
 import NavBar from './components/NavBar';
 import ChatWidget from './components/ChatWidget';
 import type { UserRole } from './types';
@@ -65,6 +67,7 @@ function AppContent() {
               <Route path="/providers" element={<ProtectedRoute><ProvidersPage /></ProtectedRoute>} />
               <Route path="/providers/:id" element={<ProtectedRoute><ProviderPage /></ProtectedRoute>} />
               <Route path="/admin/users" element={<RoleRoute roles={['ADMIN']}><AdminUsersPage /></RoleRoute>} />
+              <Route path="/admin/operations" element={<RoleRoute roles={['ADMIN']}><AdminOperationsPage /></RoleRoute>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Box>
@@ -80,7 +83,9 @@ export default function App() {
   return (
     <ThemeModeProvider>
       <AuthProvider>
-        <AppContent />
+        <CartProvider>
+          <AppContent />
+        </CartProvider>
       </AuthProvider>
     </ThemeModeProvider>
   );

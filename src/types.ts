@@ -58,6 +58,7 @@ export interface CartItem {
   id: string;
   child: Child;
   activity: Activity;
+  availabilitySlot?: string;
   createdAt: string;
 }
 
@@ -75,6 +76,7 @@ export interface ActivityBooking {
   id: string;
   child?: Child;
   activity: Activity;
+  availabilitySlot?: string;
   paymentRecordId?: string;
   status: string;
   createdAt: string;
@@ -90,6 +92,18 @@ export interface PaymentHistory {
   customerEmail?: string;
   billingName?: string;
   createdAt: string;
+}
+
+export interface AdminActivityBooking extends ActivityBooking {
+  parentId: string;
+  parentName?: string;
+  parentEmail?: string;
+}
+
+export interface AdminPaymentHistory extends PaymentHistory {
+  parentId: string;
+  parentName?: string;
+  bookingCount: number;
 }
 
 export interface Child {
@@ -130,4 +144,10 @@ export interface ChatMessage {
   childId?: string;
   activities?: Activity[];
   createdAt?: string;
+}
+
+export interface ChildRecommendations {
+  childId: string;
+  childName: string;
+  activities: Activity[];
 }

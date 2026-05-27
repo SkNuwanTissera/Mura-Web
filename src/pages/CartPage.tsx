@@ -11,11 +11,14 @@ import {
   Typography
 } from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import { CartItem } from '../types';
 import { createCheckoutSession, fetchCartItems, removeCartItem } from '../api';
+import { formatAvailabilitySlotLabel } from '../utils/availabilitySlots';
 
 export default function CartPage() {
   const { user } = useAuth();
+  const { refreshCart } = useCart();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -43,6 +46,7 @@ export default function CartPage() {
       try {
         const items = await fetchCartItems(user.parentId);
         setCartItems(items);
+        await refreshCart();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load cart items.');
       } finally {
@@ -63,6 +67,7 @@ export default function CartPage() {
     try {
       await removeCartItem(itemId);
       setCartItems((prev) => prev.filter((item) => item.id !== itemId));
+      await refreshCart();
       setSuccess('Removed item from cart.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to remove item.');
@@ -135,6 +140,11 @@ export default function CartPage() {
               <Typography variant="body2" sx={{ mb: 1 }}>
                 For: <strong>{item.child?.name ?? 'Unknown child'}</strong> (age {item.child?.age})
               </Typography>
+              {item.availabilitySlot ? (
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  Timeslot: {formatAvailabilitySlotLabel(item.availabilitySlot)}
+                </Typography>
+              ) : null}
               <Typography variant="body2" sx={{ mb: 1 }}>
                 Price: {item.activity.priceGbp != null ? `£${item.activity.priceGbp.toFixed(2)}` : 'Free'}
               </Typography>

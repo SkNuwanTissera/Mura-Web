@@ -1,19 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   Grid,
   Stack,
   Typography
 } from '@mui/material';
-import { fetchBookings, fetchPaymentHistory } from '../api';
+import { cancelBooking, fetchBookings, fetchPaymentHistory, updateBooking } from '../api';
+import BookingEditDialog from '../components/BookingEditDialog';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityBooking, PaymentHistory } from '../types';
+import { formatAvailabilitySlotLabel } from '../utils/availabilitySlots';
 
 const formatCurrency = (amount: number, currency: string) =>
   new Intl.NumberFormat('en-GB', {
@@ -29,31 +37,35 @@ export default function ProfilePage() {
   const [payments, setPayments] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<ActivityBooking | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState<ActivityBooking | null>(null);
+
+  const loadProfile = useCallback(async () => {
+    if (!user?.parentId) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const [nextBookings, nextPayments] = await Promise.all([
+        fetchBookings(user.parentId),
+        fetchPaymentHistory(user.parentId)
+      ]);
+      setBookings(nextBookings);
+      setPayments(nextPayments);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load profile details.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.parentId]);
 
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!user?.parentId) {
-        return;
-      }
-
-      setLoading(true);
-      setError('');
-      try {
-        const [nextBookings, nextPayments] = await Promise.all([
-          fetchBookings(user.parentId),
-          fetchPaymentHistory(user.parentId)
-        ]);
-        setBookings(nextBookings);
-        setPayments(nextPayments);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile details.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadProfile();
-  }, [user?.parentId]);
+    void loadProfile();
+  }, [loadProfile]);
 
   useEffect(() => {
     if (!loading && window.location.hash) {
@@ -65,6 +77,42 @@ export default function ProfilePage() {
     () => payments.reduce((sum, payment) => sum + (payment.amountGbp ?? 0), 0),
     [payments]
   );
+
+  const isCancelled = (status: string) => status.toUpperCase() === 'CANCELLED';
+
+  const handleSaveBooking = async (availabilitySlot: string) => {
+    if (!editingBooking) {
+      return;
+    }
+    setSaving(true);
+    setActionError('');
+    try {
+      await updateBooking(editingBooking.id, availabilitySlot);
+      setEditingBooking(null);
+      await loadProfile();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update booking.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancellingBooking) {
+      return;
+    }
+    setSaving(true);
+    setActionError('');
+    try {
+      await cancelBooking(cancellingBooking.id);
+      setCancellingBooking(null);
+      await loadProfile();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to cancel booking.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Box>
@@ -78,6 +126,12 @@ export default function ProfilePage() {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
+        </Alert>
+      )}
+
+      {actionError && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setActionError('')}>
+          {actionError}
         </Alert>
       )}
 
@@ -112,28 +166,61 @@ export default function ProfilePage() {
                   Confirmed activities from completed checkouts.
                 </Typography>
                 <Stack spacing={2}>
-                  {bookings.map((booking) => (
-                    <Box key={booking.id}>
-                      <Stack direction="row" justifyContent="space-between" gap={2}>
-                        <Box>
-                          <Typography variant="subtitle1">{booking.activity.name}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {booking.activity.category} • {booking.activity.city}
-                          </Typography>
-                          {booking.child && (
+                  {bookings.map((booking) => {
+                    const cancelled = isCancelled(booking.status);
+                    return (
+                      <Box key={booking.id}>
+                        <Stack direction="row" justifyContent="space-between" gap={2}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle1">{booking.activity.name}</Typography>
                             <Typography variant="body2" color="text.secondary">
-                              Child: {booking.child.name} (age {booking.child.age})
+                              {booking.activity.category} • {booking.activity.city}
                             </Typography>
-                          )}
-                          <Typography variant="body2" color="text.secondary">
-                            Booked: {formatDate(booking.createdAt)}
-                          </Typography>
-                        </Box>
-                        <Chip label={booking.status} color="success" size="small" />
-                      </Stack>
-                      <Divider sx={{ mt: 2 }} />
-                    </Box>
-                  ))}
+                            {booking.child && (
+                              <Typography variant="body2" color="text.secondary">
+                                Child: {booking.child.name} (age {booking.child.age})
+                              </Typography>
+                            )}
+                            {booking.availabilitySlot && (
+                              <Typography variant="body2" color="text.secondary">
+                                Timeslot: {formatAvailabilitySlotLabel(booking.availabilitySlot)}
+                              </Typography>
+                            )}
+                            <Typography variant="body2" color="text.secondary">
+                              Booked: {formatDate(booking.createdAt)}
+                            </Typography>
+                          </Box>
+                          <Stack alignItems="flex-end" spacing={1}>
+                            <Chip
+                              label={booking.status}
+                              color={cancelled ? 'default' : 'success'}
+                              size="small"
+                            />
+                            {!cancelled && (
+                              <Stack direction="row" spacing={1}>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => setEditingBooking(booking)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="error"
+                                  onClick={() => setCancellingBooking(booking)}
+                                >
+                                  Cancel
+                                </Button>
+                              </Stack>
+                            )}
+                          </Stack>
+                        </Stack>
+                        <Divider sx={{ mt: 2 }} />
+                      </Box>
+                    );
+                  })}
                 </Stack>
                 {bookings.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
@@ -190,6 +277,32 @@ export default function ProfilePage() {
           Bookings and payment history are available for parent accounts.
         </Typography>
       )}
+
+      <BookingEditDialog
+        booking={editingBooking}
+        open={Boolean(editingBooking)}
+        saving={saving}
+        onClose={() => setEditingBooking(null)}
+        onSave={handleSaveBooking}
+      />
+
+      <Dialog open={Boolean(cancellingBooking)} onClose={() => setCancellingBooking(null)}>
+        <DialogTitle>Cancel booking?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will cancel your booking for {cancellingBooking?.activity.name} and return the
+            timeslot to the provider&apos;s availability.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancellingBooking(null)} disabled={saving}>
+            Keep booking
+          </Button>
+          <Button color="error" variant="contained" onClick={() => void handleConfirmCancel()} disabled={saving}>
+            Cancel booking
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

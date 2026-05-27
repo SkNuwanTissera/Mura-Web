@@ -2,6 +2,7 @@ import { AppBar, Toolbar, Typography, Button, Box, IconButton, Badge } from '@mu
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
 import ThemeToggle from './ThemeToggle';
 
 const linkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -13,6 +14,7 @@ const linkStyle = ({ isActive }: { isActive: boolean }) => ({
 
 export default function NavBar() {
   const { user, logout } = useAuth();
+  const { cartCount } = useCart();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -48,6 +50,11 @@ export default function NavBar() {
                 </NavLink>
               ) : null}
               {user.role === 'ADMIN' ? (
+                <NavLink to="/admin/operations" style={linkStyle}>
+                  Operations
+                </NavLink>
+              ) : null}
+              {user.role === 'ADMIN' ? (
                 <NavLink to="/admin/users" style={linkStyle}>
                   Users
                 </NavLink>
@@ -79,7 +86,7 @@ export default function NavBar() {
                   aria-label="Cart"
                   sx={{ mr: 1 }}
                 >
-                  <Badge badgeContent={0} color="error">
+                  <Badge badgeContent={cartCount} color="error" showZero={false}>
                     <ShoppingCartIcon />
                   </Badge>
                 </IconButton>

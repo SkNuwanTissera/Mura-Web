@@ -1,33 +1,42 @@
-import { Card, CardContent, CardActions, Button, Typography, Stack, Chip } from '@mui/material';
+import { Card, CardContent, CardActions, Button, Typography, Stack, Chip, Box } from '@mui/material';
 import { Child } from '../types';
+import ChildAvailabilityVisual from './ChildAvailabilityVisual';
 
-export default function ChildCard({ child, onEdit }: { child: Child; onEdit: () => void }) {
+export default function ChildCard({
+  child,
+  bookingCounts,
+  onEdit,
+}: {
+  child: Child;
+  bookingCounts?: number[][];
+  onEdit: () => void;
+}) {
   return (
-    <Card sx={{ borderRadius: 4 }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
-          <div>
+    <Card sx={{ borderRadius: 4, overflow: 'visible' }}>
+      <CardContent sx={{ px: 3, py: 3 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} sx={{ mb: 2 }}>
+          <Box>
             <Typography variant="h6">{child.name}</Typography>
             <Typography color="text.secondary" variant="body2">
               Age: {child.age} • Born {child.dateOfBirth}
             </Typography>
-          </div>
-          <Stack direction="row" spacing={1}>
+          </Box>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ justifyContent: 'flex-end' }}>
             {child.preferredCity && <Chip label={child.preferredCity} size="small" />}
             {child.interests && <Chip label={child.interests} size="small" />}
           </Stack>
         </Stack>
-        <Typography variant="body2" sx={{ mb: 1 }}>
-          Budget: {child.maxBudgetGbp != null ? `£${child.maxBudgetGbp}` : 'Not set'}
-        </Typography>
-        <Typography variant="body2" sx={{ mb: 1 }}>
-          Availability: {child.availableTimes || 'Not specified'}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Travel radius: {child.travelRadiusKm ?? 'N/A'} km • {child.postcode || 'No postcode'}
-        </Typography>
+        <Stack spacing={1.5}>
+          <Typography variant="body2">
+            Budget: {child.maxBudgetGbp != null ? `£${child.maxBudgetGbp}` : 'Not set'}
+          </Typography>
+          <ChildAvailabilityVisual availableTimes={child.availableTimes} bookingCounts={bookingCounts} />
+          <Typography variant="body2" color="text.secondary">
+            Travel radius: {child.travelRadiusKm ?? 'N/A'} km • {child.postcode || 'No postcode'}
+          </Typography>
+        </Stack>
       </CardContent>
-      <CardActions>
+      <CardActions sx={{ px: 3, pb: 2.5, pt: 0 }}>
         <Button size="small" onClick={onEdit}>
           Edit profile
         </Button>

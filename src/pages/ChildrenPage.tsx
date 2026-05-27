@@ -2,10 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   Box,
   Button,
-  Card,
-  CardActions,
-  CardContent,
-  Divider,
   Grid,
   TextField,
   Typography,
@@ -15,10 +11,13 @@ import {
   DialogActions,
   Stack
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import { Child } from '../types';
-import { createChild, fetchChildren, updateChild } from '../api';
+import { createChild, fetchBookings, fetchChildren, updateChild } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import ChildCard from '../components/ChildCard';
+import { ActivityBooking } from '../types';
+import { buildChildBookingCountGrid } from '../utils/bookingAvailabilityGrid';
 
 const initialForm = {
   name: '',
@@ -52,12 +51,105 @@ function optionalNumber(value: string) {
   return value === '' ? undefined : Number(value);
 }
 
+function ChildFormFields({
+  form,
+  onChange,
+}: {
+  form: typeof initialForm;
+  onChange: (next: typeof initialForm) => void;
+}) {
+  return (
+    <Grid container spacing={2}>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Name"
+          value={form.name}
+          onChange={(event) => onChange({ ...form, name: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Date of birth"
+          type="date"
+          InputLabelProps={{ shrink: true }}
+          value={form.dateOfBirth}
+          onChange={(event) => onChange({ ...form, dateOfBirth: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Age"
+          type="number"
+          value={form.dateOfBirth ? calculateAge(form.dateOfBirth) : ''}
+          InputProps={{ readOnly: true }}
+          helperText="Calculated from date of birth"
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Preferred city"
+          value={form.preferredCity}
+          onChange={(event) => onChange({ ...form, preferredCity: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Interests"
+          value={form.interests}
+          onChange={(event) => onChange({ ...form, interests: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Max budget (£)"
+          type="number"
+          value={form.maxBudgetGbp}
+          onChange={(event) => onChange({ ...form, maxBudgetGbp: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Available times"
+          value={form.availableTimes}
+          onChange={(event) => onChange({ ...form, availableTimes: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Travel radius (km)"
+          type="number"
+          value={form.travelRadiusKm}
+          onChange={(event) => onChange({ ...form, travelRadiusKm: event.target.value })}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <TextField
+          fullWidth
+          label="Postcode"
+          value={form.postcode}
+          onChange={(event) => onChange({ ...form, postcode: event.target.value })}
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
 export default function ChildrenPage() {
   const { user } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
+  const [bookings, setBookings] = useState<ActivityBooking[]>([]);
   const [createForm, setCreateForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
 
   useEffect(() => {
@@ -67,12 +159,17 @@ export default function ChildrenPage() {
   const refreshChildren = async () => {
     if (!user || !user.parentId) {
       setChildren([]);
+      setBookings([]);
       return;
     }
     setLoading(true);
     try {
-      const list = await fetchChildren(user.parentId);
+      const [list, nextBookings] = await Promise.all([
+        fetchChildren(user.parentId),
+        fetchBookings(user.parentId),
+      ]);
       setChildren(list);
+      setBookings(nextBookings);
     } finally {
       setLoading(false);
     }
@@ -94,125 +191,54 @@ export default function ChildrenPage() {
       postcode: createForm.postcode || undefined
     });
     setCreateForm(initialForm);
+    setCreateDialogOpen(false);
     refreshChildren();
   };
 
   const handleEdit = (child: Child) => {
     setEditingChild(child);
-    setDialogOpen(true);
+    setEditDialogOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editingChild) return;
     await updateChild(editingChild.id, editingChild);
-    setDialogOpen(false);
+    setEditDialogOpen(false);
     refreshChildren();
+  };
+
+  const closeCreateDialog = () => {
+    setCreateDialogOpen(false);
+    setCreateForm(initialForm);
   };
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Children Profiles
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Create a child profile and update the details to improve activity recommendations.
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, mb: 3 }}>
+        <Box>
+          <Typography variant="h4" gutterBottom>
+            Children Profiles
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Create a child profile and update the details to improve activity recommendations.
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setCreateDialogOpen(true)}
+          disabled={!user?.parentId}
+          sx={{ flexShrink: 0 }}
+        >
+          Add child
+        </Button>
+      </Box>
+
       {!user?.parentId && (
         <Typography variant="body2" color="warning.main" sx={{ mb: 2 }}>
           Your account is not yet linked to a backend parent profile. Child profile creation will be enabled once the account is linked.
         </Typography>
       )}
-
-      <Card sx={{ p: 3, mb: 4, borderRadius: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Add a new child
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Name"
-              value={createForm.name}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Date of birth"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              value={createForm.dateOfBirth}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, dateOfBirth: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Age"
-              type="number"
-              value={createForm.dateOfBirth ? calculateAge(createForm.dateOfBirth) : ''}
-              InputProps={{ readOnly: true }}
-              helperText="Calculated from date of birth"
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Preferred city"
-              value={createForm.preferredCity}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, preferredCity: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Interests"
-              value={createForm.interests}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, interests: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Max budget (£)"
-              type="number"
-              value={createForm.maxBudgetGbp}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, maxBudgetGbp: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Available times"
-              value={createForm.availableTimes}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, availableTimes: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Travel radius (km)"
-              type="number"
-              value={createForm.travelRadiusKm}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, travelRadiusKm: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Postcode"
-              value={createForm.postcode}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, postcode: event.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Button variant="contained" fullWidth onClick={handleCreate} disabled={!user?.parentId}>
-              Add child
-            </Button>
-          </Grid>
-        </Grid>
-      </Card>
 
       <Stack spacing={3}>
         {loading && <Typography>Loading children...</Typography>}
@@ -220,11 +246,35 @@ export default function ChildrenPage() {
           <Typography color="text.secondary">No child profiles found yet. Add one to begin.</Typography>
         )}
         {children.map((child) => (
-          <ChildCard key={child.id} child={child} onEdit={() => handleEdit(child)} />
+          <ChildCard
+            key={child.id}
+            child={child}
+            bookingCounts={buildChildBookingCountGrid(bookings, child.id)}
+            onEdit={() => handleEdit(child)}
+          />
         ))}
       </Stack>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={createDialogOpen} onClose={closeCreateDialog} fullWidth maxWidth="md">
+        <DialogTitle>Add a new child</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <ChildFormFields form={createForm} onChange={setCreateForm} />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeCreateDialog}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={!user?.parentId || !createForm.name || !createForm.dateOfBirth}
+          >
+            Add child
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Edit child details</DialogTitle>
         <DialogContent>
           {editingChild && (
@@ -287,7 +337,7 @@ export default function ChildrenPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleSaveEdit}>
             Save changes
           </Button>
